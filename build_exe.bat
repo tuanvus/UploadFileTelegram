@@ -2,9 +2,8 @@
 setlocal
 
 if not exist ".venv" (
-    echo Chua co venv. Run setup_telegram_uploader.bat truoc.
-    pause
-    exit /b 1
+    echo Chua co venv. đã khởi tạo.
+	py -m venv .venv
 )
 
 call ".venv\Scripts\activate.bat"
