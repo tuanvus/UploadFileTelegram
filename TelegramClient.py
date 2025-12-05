@@ -9,11 +9,11 @@ import telethon.tl.functions.channels as ch
 
 
 api_id = 32259686
-api_hash = '3e4a946477a7bc62144293d79a99d9f4'
-session_name = 'local_uploader'
+api_hash = "3e4a946477a7bc62144293d79a99d9f4"
+session_name = "local_uploader"
 
-default_file_path = r'Builds/CoreGame_iOS.zip'
-default_link = 'https://t.me/c/3473915677/3/9'
+default_file_path = r"Builds/CoreGame_iOS.zip"
+default_link = "https://t.me/c/2046770732/2725"
 default_message = "New build uploaded from pipeline."
 
 
@@ -21,7 +21,7 @@ def extract_ids_from_link(link: str):
     """
     Trích xuất internal chat id + topic id từ link Telegram.
     """
-    m = re.search(r't\.me/c/(\d+)/(\d+)', link)
+    m = re.search(r"t\.me/c/(\d+)/(\d+)", link)
     if not m:
         raise ValueError("Link không hợp lệ. Phải là dạng: https://t.me/c/<id>/<topic>")
     internal_id = m.group(1)
@@ -55,8 +55,8 @@ def progress(current: int, total: int):
         f"\r[{bar}] {percent*100:5.1f}% "
         f"{current/1024/1024:6.2f}/{total/1024/1024:6.2f} MB "
         f"{speed:4.2f} MB/s ETA: {eta:5.1f}s",
-        end='',
-        flush=True
+        end="",
+        flush=True,
     )
 
 
@@ -71,14 +71,16 @@ async def resolve_chat_and_topic(client, chat_id: int, topic_id: int):
 
     try:
         # Lấy danh sách tất cả topic trong forum (tối đa 1000 topic)
-        res = await client(functions.channels.GetForumTopicsRequest(
-            channel=chat,
-            q=None,          # không filter theo text
-            offset_date=0,
-            offset_id=0,
-            offset_topic=0,
-            limit=1000,
-        ))
+        res = await client(
+            functions.channels.GetForumTopicsRequest(
+                channel=chat,
+                q=None,  # không filter theo text
+                offset_date=0,
+                offset_id=0,
+                offset_topic=0,
+                limit=1000,
+            )
+        )
 
         # Map id -> title
         topic_map = {t.id: t.title for t in res.topics}
@@ -123,6 +125,7 @@ async def main(file_path: str, link: str, caption: str):
             file_path,
             caption=caption,
             progress_callback=progress,
+            reply_to=topic_id, 
         )
 
     elapsed = time.time() - _start_time
@@ -136,9 +139,9 @@ async def main(file_path: str, link: str, caption: str):
 # ----------- ENTRY POINT ----------
 if __name__ == "__main__":
     print(telethon.__version__)
-    
-    print([name for name in dir(ch) if 'Forum' in name])
-    
+
+    print([name for name in dir(ch) if "Forum" in name])
+
     file_path = sys.argv[1] if len(sys.argv) > 1 else default_file_path
     link = sys.argv[2] if len(sys.argv) > 2 else default_link
 
@@ -146,7 +149,9 @@ if __name__ == "__main__":
     if len(sys.argv) > 3:
         caption = " ".join(sys.argv[3:])
     else:
-        user_input = input(f"Nhập message (Enter để dùng mặc định):\n[{default_message}]\n> ")
+        user_input = input(
+            f"Nhập message (Enter để dùng mặc định):\n[{default_message}]\n> "
+        )
         caption = user_input.strip() or default_message
 
     asyncio.run(main(file_path, link, caption))
