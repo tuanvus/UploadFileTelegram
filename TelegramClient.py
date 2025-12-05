@@ -11,15 +11,21 @@ session_name = 'local_uploader'
 
 default_file_path = r'Builds/CoreGame_iOS.zip'
 default_link = 'https://t.me/c/3473915677/3/9'
-default_message = "New build uploaded from pipeline."   # <-- message mặc định
+default_message = "New build uploaded from pipeline."
 
-def extract_chat_id_from_link(link: str) -> int:
-    m = re.search(r't\.me/c/(\d+)', link)
+def extract_ids_from_link(link: str):
+    """
+    Trích xuất internal chat id + topic id từ link Telegram.
+    """
+    m = re.search(r't\.me/c/(\d+)/(\d+)', link)
     if not m:
-        raise ValueError('Link không đúng dạng t.me/c/<id>/...')
-    digits = m.group(1)
-    return int('-100' + digits)
+        raise ValueError("Link không hợp lệ. Phải là dạng: https://t.me/c/<id>/<topic>")
+    internal_id = m.group(1)
+    topic_id = int(m.group(2))
+    chat_id = int("-100" + internal_id)
+    return chat_id, topic_id
 
+# ----------- PROGRESS BAR ----------
 _start_time = None
 _total_size = None
 
@@ -41,11 +47,33 @@ def progress(current: int, total: int):
     )
     print(msg, end='', flush=True)
 
+# ----------- LẤY TÊN GROUP & TÊN TOPIC ----------
+async def resolve_chat_and_topic(client, chat_id: int, topic_id: int):
+    """
+    Lấy tên group/channel + tên topic từ Telegram.
+    """
+    # Lấy thông tin group
+    chat = await client.get_entity(chat_id)
+    chat_name = getattr(chat, "title", "Unknown")
+
+    # Lấy thông tin topic
+    try:
+        msg = await client.get_messages(chat_id, ids=topic_id)
+        if msg and msg.reply_to and msg.reply_to.forum_topic:
+            topic_name = msg.reply_to.forum_topic.title
+        else:
+            topic_name = f"Topic {topic_id}"
+    except:
+        topic_name = f"Topic {topic_id}"
+
+    return chat_name, topic_name
+
+# ----------- MAIN UPLOAD LOGIC ----------
 async def main(file_path: str, link: str, caption: str):
-    chat_id = extract_chat_id_from_link(link)
+    chat_id, topic_id = extract_ids_from_link(link)
 
     if not os.path.isfile(file_path):
-        raise FileNotFoundError(f'Không tìm thấy file: {file_path}')
+        raise FileNotFoundError(f"Không tìm thấy file: {file_path}")
 
     filename = os.path.basename(file_path)
     size_bytes = os.path.getsize(file_path)
@@ -59,6 +87,11 @@ async def main(file_path: str, link: str, caption: str):
     _total_size = size_bytes
 
     async with TelegramClient(session_name, api_id, api_hash) as client:
+
+        # Lấy tên group + topic
+        chat_name, topic_name = await resolve_chat_and_topic(client, chat_id, topic_id)
+        print(f"\nSend to: {chat_name} -> {topic_name}\n")
+
         await client.send_file(
             chat_id,
             file_path,
@@ -72,14 +105,12 @@ async def main(file_path: str, link: str, caption: str):
     print(f"Thời gian: {elapsed:.1f} s")
     print(f"Tốc độ TB: {speed:.2f} MB/s")
 
+# ----------- ENTRY POINT ----------
 if __name__ == "__main__":
     file_path = sys.argv[1] if len(sys.argv) > 1 else default_file_path
     link = sys.argv[2] if len(sys.argv) > 2 else default_link
 
-    # Ưu tiên theo thứ tự:
-    # 1) Arg từ command line (sys.argv[3:])
-    # 2) Nếu không có arg, hỏi input()
-    # 3) Nếu chỉ Enter trống, dùng default_message
+    # Caption logic
     if len(sys.argv) > 3:
         caption = " ".join(sys.argv[3:])
     else:
