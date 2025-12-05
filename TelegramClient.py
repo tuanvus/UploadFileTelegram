@@ -13,6 +13,7 @@ default_file_path = r'Builds/CoreGame_iOS.zip'
 default_link = 'https://t.me/c/3473915677/3/9'
 default_message = "New build uploaded from pipeline."
 
+
 def extract_ids_from_link(link: str):
     """
     Trích xuất internal chat id + topic id từ link Telegram.
@@ -25,38 +26,42 @@ def extract_ids_from_link(link: str):
     chat_id = int("-100" + internal_id)
     return chat_id, topic_id
 
-# ----------- PROGRESS BAR ----------
+
+# ----------- PROGRESS BAR (BẢN ĐẸP) ----------
 _start_time = None
 _total_size = None
 
+
 def progress(current: int, total: int):
     global _start_time, _total_size
+
     if _start_time is None:
         _start_time = time.time()
-    if _total_size is None:
-        _total_size = total
 
-    percent = current * 100 / total if total else 0
-    elapsed = max(time.time() - _start_time, 0.001)
-    speed = current / 1024 / 1024 / elapsed
+    percent = current / total
+    bar_len = 28
+    filled_len = int(bar_len * percent)
 
-    msg = (
-        f"\rUploaded {percent:5.1f}%  "
-        f"({current/1024/1024:6.2f}/{total/1024/1024:6.2f} MB)  "
-        f"{speed:4.2f} MB/s"
+    bar = "█" * filled_len + "-" * (bar_len - filled_len)
+
+    elapsed = time.time() - _start_time
+    speed = current / 1024 / 1024 / elapsed if elapsed > 0 else 0
+    eta = (total - current) / 1024 / 1024 / speed if speed > 0 else 0
+
+    print(
+        f"\r[{bar}] {percent*100:5.1f}% "
+        f"{current/1024/1024:6.2f}/{total/1024/1024:6.2f} MB "
+        f"{speed:4.2f} MB/s ETA: {eta:5.1f}s",
+        end='',
+        flush=True
     )
-    print(msg, end='', flush=True)
+
 
 # ----------- LẤY TÊN GROUP & TÊN TOPIC ----------
 async def resolve_chat_and_topic(client, chat_id: int, topic_id: int):
-    """
-    Lấy tên group/channel + tên topic từ Telegram.
-    """
-    # Lấy thông tin group
     chat = await client.get_entity(chat_id)
     chat_name = getattr(chat, "title", "Unknown")
 
-    # Lấy thông tin topic
     try:
         msg = await client.get_messages(chat_id, ids=topic_id)
         if msg and msg.reply_to and msg.reply_to.forum_topic:
@@ -67,6 +72,7 @@ async def resolve_chat_and_topic(client, chat_id: int, topic_id: int):
         topic_name = f"Topic {topic_id}"
 
     return chat_name, topic_name
+
 
 # ----------- MAIN UPLOAD LOGIC ----------
 async def main(file_path: str, link: str, caption: str):
@@ -100,10 +106,12 @@ async def main(file_path: str, link: str, caption: str):
         )
 
     elapsed = time.time() - _start_time
-    speed = size_mb / elapsed if elapsed > 0 else 0
+    speed_avg = size_mb / elapsed if elapsed > 0 else 0
+
     print(f"\nUpload xong: {filename}")
     print(f"Thời gian: {elapsed:.1f} s")
-    print(f"Tốc độ TB: {speed:.2f} MB/s")
+    print(f"Tốc độ TB: {speed_avg:.2f} MB/s")
+
 
 # ----------- ENTRY POINT ----------
 if __name__ == "__main__":
