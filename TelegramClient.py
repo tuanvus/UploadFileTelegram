@@ -1,23 +1,24 @@
 from telethon import TelegramClient
-from FastTelethonhelper import fast_upload
 import asyncio
 import time
 import os
 import re
 import sys
 
-api_id = 32259686      # thay bằng api_id của bạn
+api_id = 32259686
 api_hash = '3e4a946477a7bc62144293d79a99d9f4'
 session_name = 'local_uploader'
+
 default_file_path = r'Builds/CoreGame_iOS.zip'
 default_link = 'https://t.me/c/3473915677/3/9'
+default_message = "New build uploaded from pipeline."   # <-- message mặc định
 
 def extract_chat_id_from_link(link: str) -> int:
     m = re.search(r't\.me/c/(\d+)', link)
     if not m:
         raise ValueError('Link không đúng dạng t.me/c/<id>/...')
     digits = m.group(1)
-    return int('-100' + digits)   # -1003473915677
+    return int('-100' + digits)
 
 _start_time = None
 _total_size = None
@@ -31,7 +32,7 @@ def progress(current: int, total: int):
 
     percent = current * 100 / total if total else 0
     elapsed = max(time.time() - _start_time, 0.001)
-    speed = current / 1024 / 1024 / elapsed  # MB/s
+    speed = current / 1024 / 1024 / elapsed
 
     msg = (
         f"\rUploaded {percent:5.1f}%  "
@@ -40,7 +41,7 @@ def progress(current: int, total: int):
     )
     print(msg, end='', flush=True)
 
-async def main(file_path: str, link: str):
+async def main(file_path: str, link: str, caption: str):
     chat_id = extract_chat_id_from_link(link)
 
     if not os.path.isfile(file_path):
@@ -51,6 +52,7 @@ async def main(file_path: str, link: str):
     size_mb = size_bytes / 1024 / 1024
 
     print(f"Start upload: {filename} ({size_mb:.2f} MB)")
+    print(f"Caption: {caption}")
 
     global _start_time, _total_size
     _start_time = time.time()
@@ -60,7 +62,8 @@ async def main(file_path: str, link: str):
         await client.send_file(
             chat_id,
             file_path,
-            progress_callback=progress,  # <- realtime % + MB/s
+            caption=caption,
+            progress_callback=progress,
         )
 
     elapsed = time.time() - _start_time
@@ -72,4 +75,15 @@ async def main(file_path: str, link: str):
 if __name__ == "__main__":
     file_path = sys.argv[1] if len(sys.argv) > 1 else default_file_path
     link = sys.argv[2] if len(sys.argv) > 2 else default_link
-    asyncio.run(main(file_path, link))
+
+    # Ưu tiên theo thứ tự:
+    # 1) Arg từ command line (sys.argv[3:])
+    # 2) Nếu không có arg, hỏi input()
+    # 3) Nếu chỉ Enter trống, dùng default_message
+    if len(sys.argv) > 3:
+        caption = " ".join(sys.argv[3:])
+    else:
+        user_input = input(f"Nhập message (Enter để dùng mặc định):\n[{default_message}]\n> ")
+        caption = user_input.strip() or default_message
+
+    asyncio.run(main(file_path, link, caption))
