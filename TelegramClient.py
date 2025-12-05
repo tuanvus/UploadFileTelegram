@@ -1,9 +1,12 @@
-from telethon import TelegramClient
+from telethon import TelegramClient, functions
 import asyncio
 import time
 import os
 import re
 import sys
+import telethon
+import telethon.tl.functions.channels as ch
+
 
 api_id = 32259686
 api_hash = '3e4a946477a7bc62144293d79a99d9f4'
@@ -59,17 +62,34 @@ def progress(current: int, total: int):
 
 # ----------- LẤY TÊN GROUP & TÊN TOPIC ----------
 async def resolve_chat_and_topic(client, chat_id: int, topic_id: int):
+    # Lấy entity + tên nhóm/kênh
     chat = await client.get_entity(chat_id)
-    chat_name = getattr(chat, "title", "Unknown")
+    chat_name = getattr(chat, "title", getattr(chat, "first_name", "Unknown"))
+
+    # Mặc định nếu không tìm được title
+    topic_name = f"Topic {topic_id}"
 
     try:
-        msg = await client.get_messages(chat_id, ids=topic_id)
-        if msg and msg.reply_to and msg.reply_to.forum_topic:
-            topic_name = msg.reply_to.forum_topic.title
-        else:
-            topic_name = f"Topic {topic_id}"
-    except:
-        topic_name = f"Topic {topic_id}"
+        # Lấy danh sách tất cả topic trong forum (tối đa 1000 topic)
+        res = await client(functions.channels.GetForumTopicsRequest(
+            channel=chat,
+            q=None,          # không filter theo text
+            offset_date=0,
+            offset_id=0,
+            offset_topic=0,
+            limit=1000,
+        ))
+
+        # Map id -> title
+        topic_map = {t.id: t.title for t in res.topics}
+
+        # Nếu topic_id tồn tại trong map, lấy title thật
+        if topic_id in topic_map:
+            topic_name = topic_map[topic_id]
+
+    except Exception as e:
+        # debug tạm thời
+        print("GetForumTopics error:", e)
 
     return chat_name, topic_name
 
@@ -115,6 +135,10 @@ async def main(file_path: str, link: str, caption: str):
 
 # ----------- ENTRY POINT ----------
 if __name__ == "__main__":
+    print(telethon.__version__)
+    
+    print([name for name in dir(ch) if 'Forum' in name])
+    
     file_path = sys.argv[1] if len(sys.argv) > 1 else default_file_path
     link = sys.argv[2] if len(sys.argv) > 2 else default_link
 
