@@ -1,4 +1,5 @@
-from telethon import TelegramClient, functions
+from telethon import TelegramClient, functions, utils
+from telethon.tl import types
 import asyncio
 import time
 import os
@@ -7,10 +8,26 @@ import sys
 import telethon
 import telethon.tl.functions.channels as ch
 
+# Import FastTelethon
+try:
+    from FastTelethon import upload_file
+    FAST_UPLOAD = True
+    print("✓ FastTelethon loaded - Upload song song (NHANH)\n")
+except ImportError:
+    FAST_UPLOAD = False
+    print("✗ FastTelethon not found - Upload thường (CHẬM)\n")
 
+# ========== CẤU HÌNH SESSION PATH ==========
+USER_HOME = os.path.expanduser("~")
+SESSION_DIR = os.path.join(USER_HOME, ".telegram_sessions")
+os.makedirs(SESSION_DIR, exist_ok=True)
+session_path = os.path.join(SESSION_DIR, "local_uploader")
+
+print(f"Session: {session_path}.session\n")
+
+# ========== CẤU HÌNH API ==========
 api_id = 32259686
 api_hash = "3e4a946477a7bc62144293d79a99d9f4"
-session_name = "local_uploader"
 
 default_file_path = r"Builds/CoreGame_iOS.zip"
 default_link = "https://t.me/c/2046770732/2725"
@@ -18,9 +35,7 @@ default_message = "New build uploaded from pipeline."
 
 
 def extract_ids_from_link(link: str):
-    """
-    Trích xuất internal chat id + topic id từ link Telegram.
-    """
+    """Trích xuất internal chat id + topic id từ link Telegram."""
     m = re.search(r"t\.me/c/(\d+)/(\d+)", link)
     if not m:
         raise ValueError("Link không hợp lệ. Phải là dạng: https://t.me/c/<id>/<topic>")
@@ -30,13 +45,12 @@ def extract_ids_from_link(link: str):
     return chat_id, topic_id
 
 
-# ----------- PROGRESS BAR (BẢN ĐẸP) ----------
+# ----------- PROGRESS BAR ----------
 _start_time = None
-_total_size = None
 
 
 def progress(current: int, total: int):
-    global _start_time, _total_size
+    global _start_time
 
     if _start_time is None:
         _start_time = time.time()
@@ -60,38 +74,28 @@ def progress(current: int, total: int):
     )
 
 
-# ----------- LẤY TÊN GROUP & TÊN TOPIC ----------
+# ----------- LẤY TÊN GROUP & TOPIC ----------
 async def resolve_chat_and_topic(client, chat_id: int, topic_id: int):
-    # Lấy entity + tên nhóm/kênh
     chat = await client.get_entity(chat_id)
     chat_name = getattr(chat, "title", getattr(chat, "first_name", "Unknown"))
-
-    # Mặc định nếu không tìm được title
     topic_name = f"Topic {topic_id}"
 
     try:
-        # Lấy danh sách tất cả topic trong forum (tối đa 1000 topic)
         res = await client(
             functions.channels.GetForumTopicsRequest(
                 channel=chat,
-                q=None,  # không filter theo text
+                q=None,
                 offset_date=0,
                 offset_id=0,
                 offset_topic=0,
                 limit=1000,
             )
         )
-
-        # Map id -> title
         topic_map = {t.id: t.title for t in res.topics}
-
-        # Nếu topic_id tồn tại trong map, lấy title thật
         if topic_id in topic_map:
             topic_name = topic_map[topic_id]
-
     except Exception as e:
-        # debug tạm thời
-        print("GetForumTopics error:", e)
+        print(f"GetForumTopics error: {e}")
 
     return chat_name, topic_name
 
@@ -107,50 +111,79 @@ async def main(file_path: str, link: str, caption: str):
     size_bytes = os.path.getsize(file_path)
     size_mb = size_bytes / 1024 / 1024
 
-    print(f"Start upload: {filename} ({size_mb:.2f} MB)")
-    print(f"Caption: {caption}")
+    print(f"File: {filename} ({size_mb:.2f} MB)")
+    print(f"Mode: {'⚡ FAST (parallel)' if FAST_UPLOAD else '🐢 NORMAL (slow)'}")
+    print(f"Caption: {caption}\n")
 
-    global _start_time, _total_size
+    global _start_time
     _start_time = time.time()
-    _total_size = size_bytes
 
-    async with TelegramClient(session_name, api_id, api_hash) as client:
-
-        # Lấy tên group + topic
+    async with TelegramClient(session_path, api_id, api_hash) as client:
         chat_name, topic_name = await resolve_chat_and_topic(client, chat_id, topic_id)
-        print(f"\nSend to: {chat_name} -> {topic_name}\n")
+        print(f"Send to: {chat_name} -> {topic_name}\n")
 
-        await client.send_file(
-            chat_id,
-            file_path,
-            caption=caption,
-            progress_callback=progress,
-            reply_to=topic_id, 
-        )
+        if FAST_UPLOAD:
+            # ===== FAST UPLOAD (SONG SONG) =====
+            with open(file_path, "rb") as f:
+                uploaded_file = await upload_file(
+                    client=client,
+                    file=f,
+                    progress_callback=progress
+                )
+
+            # Get file attributes
+            attributes, mime_type = utils.get_attributes(file_path)
+            
+            # Send file với attributes
+            await client.send_file(
+                chat_id,
+                file=uploaded_file,
+                caption=caption,
+                reply_to=topic_id,
+                attributes=attributes,
+                mime_type=mime_type,
+                force_document=True
+            )
+        else:
+            # ===== NORMAL UPLOAD (TỐI ƯU PART SIZE) =====
+            await client.send_file(
+                chat_id,
+                file_path,
+                caption=caption,
+                progress_callback=progress,
+                reply_to=topic_id,
+                part_size_kb=1024  # Tăng từ 512KB lên 1024KB
+            )
 
     elapsed = time.time() - _start_time
     speed_avg = size_mb / elapsed if elapsed > 0 else 0
 
-    print(f"\nUpload xong: {filename}")
-    print(f"Thời gian: {elapsed:.1f} s")
-    print(f"Tốc độ TB: {speed_avg:.2f} MB/s")
+    print(f"\n\n✅ Upload xong: {filename}")
+    print(f"⏱  Thời gian: {elapsed:.1f}s")
+    print(f"🚀 Tốc độ TB: {speed_avg:.2f} MB/s")
 
 
 # ----------- ENTRY POINT ----------
 if __name__ == "__main__":
-    print(telethon.__version__)
-
-    print([name for name in dir(ch) if "Forum" in name])
+    print(f"Telethon v{telethon.__version__}")
+    
+    # Check cryptg
+    try:
+        import cryptg
+        print("✓ cryptg installed (AES tối ưu)")
+    except ImportError:
+        print("✗ cryptg NOT installed - Chạy: pip install cryptg")
+    
+    print()
 
     file_path = sys.argv[1] if len(sys.argv) > 1 else default_file_path
     link = sys.argv[2] if len(sys.argv) > 2 else default_link
 
-    # Caption logic
     if len(sys.argv) > 3:
         caption = " ".join(sys.argv[3:])
     else:
         user_input = input(
-            f"Nhập message (Enter để dùng mặc định):\n[{default_message}]\n> "
+            f"Nhập message (Enter = mặc định):\n[{default_message}]\n> "
         )
         caption = user_input.strip() or default_message
 
