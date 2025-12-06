@@ -11,6 +11,7 @@ import telethon.tl.functions.channels as ch
 # Import FastTelethon
 try:
     from FastTelethon import upload_file
+
     FAST_UPLOAD = True
     print("✓ FastTelethon loaded - Upload song song (NHANH)\n")
 except ImportError:
@@ -29,8 +30,8 @@ print(f"Session: {session_path}.session\n")
 api_id = 32259686
 api_hash = "3e4a946477a7bc62144293d79a99d9f4"
 
-default_file_path = r"Builds/CoreGame_iOS.zip"
-default_link = "https://t.me/c/2046770732/2725"
+default_file_path = r"Builds/CoreGame_iOS.rar"
+default_link = "https://t.me/c/3473915677/3"
 default_message = "New build uploaded from pipeline."
 
 
@@ -133,7 +134,7 @@ async def main(file_path: str, link: str, caption: str):
 
             # Get file attributes
             attributes, mime_type = utils.get_attributes(file_path)
-            
+
             # Send file với attributes
             await client.send_file(
                 chat_id,
@@ -142,7 +143,7 @@ async def main(file_path: str, link: str, caption: str):
                 reply_to=topic_id,
                 attributes=attributes,
                 mime_type=mime_type,
-                force_document=True
+                force_document=True,
             )
         else:
             # ===== NORMAL UPLOAD (TỐI ƯU PART SIZE) =====
@@ -152,7 +153,7 @@ async def main(file_path: str, link: str, caption: str):
                 caption=caption,
                 progress_callback=progress,
                 reply_to=topic_id,
-                part_size_kb=1024  # Tăng từ 512KB lên 1024KB
+                part_size_kb=1024,  # Tăng từ 512KB lên 1024KB
             )
 
     elapsed = time.time() - _start_time
@@ -166,14 +167,15 @@ async def main(file_path: str, link: str, caption: str):
 # ----------- ENTRY POINT ----------
 if __name__ == "__main__":
     print(f"Telethon v{telethon.__version__}")
-    
+
     # Check cryptg
     try:
         import cryptg
+
         print("✓ cryptg installed (AES tối ưu)")
     except ImportError:
         print("✗ cryptg NOT installed - Chạy: pip install cryptg")
-    
+
     print()
 
     file_path = sys.argv[1] if len(sys.argv) > 1 else default_file_path
@@ -182,9 +184,7 @@ if __name__ == "__main__":
     if len(sys.argv) > 3:
         caption = " ".join(sys.argv[3:])
     else:
-        user_input = input(
-            f"Nhập message (Enter = mặc định):\n[{default_message}]\n> "
-        )
+        user_input = input(f"Nhập message (Enter = mặc định):\n[{default_message}]\n> ")
         caption = user_input.strip() or default_message
 
     asyncio.run(main(file_path, link, caption))
