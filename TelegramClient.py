@@ -8,15 +8,16 @@ import sys
 import telethon
 import telethon.tl.functions.channels as ch
 
+
 # Import FastTelethon
 try:
     from FastTelethon import upload_file
-
     FAST_UPLOAD = True
     print("✓ FastTelethon loaded - Upload song song (NHANH)\n")
 except ImportError:
     FAST_UPLOAD = False
     print("✗ FastTelethon not found - Upload thường (CHẬM)\n")
+
 
 # ========== CẤU HÌNH SESSION PATH ==========
 USER_HOME = os.path.expanduser("~")
@@ -26,13 +27,13 @@ session_path = os.path.join(SESSION_DIR, "local_uploader")
 
 print(f"Session: {session_path}.session\n")
 
-# ========== CẤU HÌNH API ==========
-api_id = 32259686
-api_hash = "3e4a946477a7bc62144293d79a99d9f4"
 
+# ========== CẤU HÌNH DEFAULTS ==========
 default_file_path = r"Builds/CoreGame_iOS.rar"
 default_link = "https://t.me/c/3473915677/3"
 default_message = "New build uploaded from pipeline."
+default_api_id = 32259686
+default_api_hash = "3e4a946477a7bc62144293d79a99d9f4"
 
 
 def extract_ids_from_link(link: str):
@@ -102,7 +103,7 @@ async def resolve_chat_and_topic(client, chat_id: int, topic_id: int):
 
 
 # ----------- MAIN UPLOAD LOGIC ----------
-async def main(file_path: str, link: str, caption: str):
+async def main(file_path: str, link: str, caption: str, api_id: int, api_hash: str):
     chat_id, topic_id = extract_ids_from_link(link)
 
     if not os.path.isfile(file_path):
@@ -171,20 +172,41 @@ if __name__ == "__main__":
     # Check cryptg
     try:
         import cryptg
-
         print("✓ cryptg installed (AES tối ưu)")
     except ImportError:
         print("✗ cryptg NOT installed - Chạy: pip install cryptg")
 
     print()
 
-    file_path = sys.argv[1] if len(sys.argv) > 1 else default_file_path
-    link = sys.argv[2] if len(sys.argv) > 2 else default_link
+    # Parse arguments - Nếu trống hoặc không truyền thì dùng default
+    file_path = sys.argv[1].strip() if len(sys.argv) > 1 and sys.argv[1].strip() else default_file_path
+    link = sys.argv[2].strip() if len(sys.argv) > 2 and sys.argv[2].strip() else default_link
+    
+    # API credentials - Nếu trống hoặc không truyền thì dùng default
+    api_id = default_api_id
+    api_hash = default_api_hash
+    
+    if len(sys.argv) > 3 and sys.argv[3].strip():
+        try:
+            api_id = int(sys.argv[3].strip())
+        except ValueError:
+            print(f"⚠️  API ID không hợp lệ, dùng default: {default_api_id}")
+    
+    if len(sys.argv) > 4 and sys.argv[4].strip():
+        api_hash = sys.argv[4].strip()
 
-    if len(sys.argv) > 3:
-        caption = " ".join(sys.argv[3:])
+    # Message/Caption - Nếu trống hoặc không truyền thì dùng default
+    if len(sys.argv) > 5:
+        caption = " ".join(sys.argv[5:]).strip()
+        if not caption:
+            caption = default_message
     else:
-        user_input = input(f"Nhập message (Enter = mặc định):\n[{default_message}]\n> ")
-        caption = user_input.strip() or default_message
+        caption = default_message
 
-    asyncio.run(main(file_path, link, caption))
+    print(f"📁 File: {file_path}")
+    print(f"🔗 Link: {link}")
+    print(f"🔑 API ID: {api_id}")
+    print(f"🔑 API Hash: {api_hash[:8]}...{api_hash[-4:]}")
+    print(f"💬 Message: {caption}\n")
+
+    asyncio.run(main(file_path, link, caption, api_id, api_hash))
