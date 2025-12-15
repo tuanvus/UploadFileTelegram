@@ -90,7 +90,6 @@ async def resolve_chat_and_topic(client, chat_id: int, topic_id: int):
             topic_name = topic_map[topic_id]
 
     except Exception as e:
-        # debug tạm thời
        print("GetForumTopics error:", e)
 
     return chat_name, topic_name
