@@ -8,29 +8,29 @@ import telethon
 import telethon.tl.functions.channels as ch
 
 
-api_id = 32259686
-api_hash = "3e4a946477a7bc62144293d79a99d9f4"
+api_id = 0
+api_hash = ""
 session_name = "local_uploader"
 
-default_file_path = r"Builds/CoreGame_iOS.zip"
-default_link = "https://t.me/c/2046770732/2725"
+default_file_path = r"Builds/demo.zip"
+default_link = "https://t.me/c/123/123"
 default_message = ""
 
 
 def extract_ids_from_link(link: str):
     """
-    Trích xuất internal chat id + topic id từ link Telegram.
+    Extract internal chat id + topic id from Telegram link.
     """
     m = re.search(r"t\.me/c/(\d+)/(\d+)", link)
     if not m:
-        raise ValueError("Link không hợp lệ. Phải là dạng: https://t.me/c/<id>/<topic>")
+        raise ValueError("Invalid link. Must be in format: https://t.me/c/<id>/<topic>")
     internal_id = m.group(1)
     topic_id = int(m.group(2))
     chat_id = int("-100" + internal_id)
     return chat_id, topic_id
 
 
-# ----------- PROGRESS BAR (BẢN ĐẸP) ----------
+# ----------- PROGRESS BAR (PRETTY VERSION) ----------
 _start_time = None
 _total_size = None
 
@@ -60,21 +60,21 @@ def progress(current: int, total: int):
     )
 
 
-# ----------- LẤY TÊN GROUP & TÊN TOPIC ----------
+# ----------- GET GROUP & TOPIC NAME ----------
 async def resolve_chat_and_topic(client, chat_id: int, topic_id: int):
-    # Lấy entity + tên nhóm/kênh
+    # Get entity + group/channel name
     chat = await client.get_entity(chat_id)
     chat_name = getattr(chat, "title", getattr(chat, "first_name", "Unknown"))
 
-    # Mặc định nếu không tìm được title
+    # Default if title not found
     topic_name = f"Topic {topic_id}"
 
     try:
-        # Lấy danh sách tất cả topic trong forum (tối đa 1000 topic)
+        # Get list of all topics in forum (max 1000 topics)
         res = await client(
             functions.channels.GetForumTopicsRequest(
                 channel=chat,
-                q=None,  # không filter theo text
+                q=None,  # no text filter
                 offset_date=0,
                 offset_id=0,
                 offset_topic=0,
@@ -85,7 +85,7 @@ async def resolve_chat_and_topic(client, chat_id: int, topic_id: int):
         # Map id -> title
         topic_map = {t.id: t.title for t in res.topics}
 
-        # Nếu topic_id tồn tại trong map, lấy title thật
+        # If topic_id exists in map, get real title
         if topic_id in topic_map:
             topic_name = topic_map[topic_id]
 
@@ -100,7 +100,7 @@ async def main(file_path: str, link: str, caption: str):
     chat_id, topic_id = extract_ids_from_link(link)
 
     if not os.path.isfile(file_path):
-        raise FileNotFoundError(f"Không tìm thấy file: {file_path}")
+        raise FileNotFoundError(f"File not found: {file_path}")
 
     filename = os.path.basename(file_path)
     size_bytes = os.path.getsize(file_path)
@@ -115,7 +115,7 @@ async def main(file_path: str, link: str, caption: str):
 
     async with TelegramClient(session_name, api_id, api_hash) as client:
 
-        # Lấy tên group + topic
+        # Get group + topic name
         chat_name, topic_name = await resolve_chat_and_topic(client, chat_id, topic_id)
         print(f"\nSend to: {chat_name} -> {topic_name}\n")
 
@@ -130,9 +130,9 @@ async def main(file_path: str, link: str, caption: str):
     elapsed = time.time() - _start_time
     speed_avg = size_mb / elapsed if elapsed > 0 else 0
 
-    print(f"\nUpload xong: {filename}")
-    print(f"Thời gian: {elapsed:.1f} s")
-    print(f"Tốc độ TB: {speed_avg:.2f} MB/s")
+    print(f"\nUpload complete: {filename}")
+    print(f"Time taken: {elapsed:.1f} s")
+    print(f"Average speed: {speed_avg:.2f} MB/s")
 
 
 # ----------- ENTRY POINT ----------
@@ -149,7 +149,7 @@ if __name__ == "__main__":
         caption = " ".join(sys.argv[3:])
     else:
         user_input = input(
-            f"Nhập message (Enter để dùng mặc định):\n[{default_message}]\n> "
+            f"Enter message (Press Enter for default):\n[{default_message}]\n> "
         )
         caption = user_input.strip() or default_message
 
